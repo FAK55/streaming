@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Stream - Interactive Overlay Demo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0f0f0f;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      color: #fff;
+      overflow: hidden;
+    }
+
+    .container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* --- Video Player --- */
+    #video-wrapper {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+
+    #video-wrapper iframe,
+    #video-wrapper video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #000;
+    }
+
+    /* --- Overlay Layer --- */
+    .overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    .overlay > * {
+      pointer-events: auto;
+    }
+
+    /* --- Live Badge --- */
+    .live-badge {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: #e91e63;
+      padding: 6px 16px;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+
+    /* --- Viewer Count --- */
+    .viewer-count {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: rgba(0,0,0,0.7);
+      padding: 8px 16px;
+      border-radius: 4px;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .viewer-dot {
+      width: 8px;
+      height: 8px;
+      background: #4caf50;
+      border-radius: 50%;
+    }
+
+    /* --- Player Stats Bar --- */
+    .stats-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: linear-gradient(transparent, rgba(0,0,0,0.85));
+      padding: 40px 20px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+
+    .player-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .player-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    .player-name { font-size: 18px; font-weight: 600; }
+    .player-game { font-size: 13px; color: #aaa; }
+
+    .stats-right {
+      display: flex;
+      gap: 24px;
+    }
+
+    .stat {
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 22px;
+      font-weight: 700;
+      color: #00e5ff;
+    }
+
+    .stat-label {
+      font-size: 11px;
+      color: #999;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* --- Live Poll Widget --- */
+    .poll-widget {
+      position: absolute;
+      top: 70px;
+      right: 20px;
+      width: 260px;
+      background: rgba(0,0,0,0.85);
+      border-radius: 8px;
+      padding: 16px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .poll-title {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: #ffd740;
+    }
+
+    .poll-option {
+      margin-bottom: 8px;
+      cursor: pointer;
+    }
+
+    .poll-option-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+
+    .poll-bar-bg {
+      height: 6px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .poll-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.5s ease;
+    }
+
+    .poll-bar-fill.a { background: #e91e63; }
+    .poll-bar-fill.b { background: #2196f3; }
+    .poll-bar-fill.c { background: #4caf50; }
+
+    .poll-total {
+      font-size: 11px;
+      color: #666;
+      margin-top: 8px;
+      text-align: right;
+    }
+
+    /* --- Chat Feed --- */
+    .chat-feed {
+      position: absolute;
+      bottom: 100px;
+      left: 20px;
+      width: 300px;
+      max-height: 200px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .chat-msg {
+      background: rgba(0,0,0,0.6);
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .chat-msg .nick {
+      font-weight: 600;
+      margin-right: 6px;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* --- No Stream Message --- */
+    .no-stream {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      z-index: 5;
+    }
+
+    .no-stream h2 { font-size: 24px; margin-bottom: 8px; }
+    .no-stream p { color: #888; font-size: 14px; }
+    .no-stream code {
+      display: inline-block;
+      margin-top: 12px;
+      background: rgba(255,255,255,0.1);
+      padding: 8px 16px;
+      border-radius: 4px;
+      font-size: 13px;
+      color: #00e5ff;
+    }
+
+    /* --- Protocol Switcher --- */
+    .protocol-switcher {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 4px;
+      background: rgba(0,0,0,0.7);
+      border-radius: 6px;
+      padding: 4px;
+      z-index: 20;
+    }
+
+    .protocol-btn {
+      padding: 6px 14px;
+      border: none;
+      background: transparent;
+      color: #aaa;
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: 4px;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .protocol-btn.active {
+      background: #e91e63;
+      color: #fff;
+    }
+
+    .protocol-btn:hover:not(.active) {
+      color: #fff;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="video-wrapper">
+      <!-- Video will be injected here -->
+      <div class="no-stream" id="no-stream">
+        <h2>Waiting for stream...</h2>
+        <p>Start streaming from OBS to MediaMTX</p>
+        <code>rtmp://localhost:1935/live</code>
+      </div>
+    </div>
+
+    <div class="overlay">
+      <!-- Protocol Switcher -->
+      <div class="protocol-switcher">
+        <button class="protocol-btn active" onclick="switchProtocol('webrtc')">WebRTC</button>
+        <button class="protocol-btn" onclick="switchProtocol('hls')">HLS</button>
+      </div>
+
+      <!-- Live Badge -->
+      <div class="live-badge">LIVE</div>
+
+      <!-- Viewer Count -->
+      <div class="viewer-count">
+        <div class="viewer-dot"></div>
+        <span id="viewer-count">--</span> watching
+      </div>
+
+      <!-- Live Poll -->
+      <div class="poll-widget">
+        <div class="poll-title">Who will win this round?</div>
+        <div class="poll-option" onclick="vote('a')">
+          <div class="poll-option-header">
+            <span>Team Alpha</span>
+            <span id="pct-a">0%</span>
+          </div>
+          <div class="poll-bar-bg"><div class="poll-bar-fill a" id="bar-a" style="width:0%"></div></div>
+        </div>
+        <div class="poll-option" onclick="vote('b')">
+          <div class="poll-option-header">
+            <span>Team Bravo</span>
+            <span id="pct-b">0%</span>
+          </div>
+          <div class="poll-bar-bg"><div class="poll-bar-fill b" id="bar-b" style="width:0%"></div></div>
+        </div>
+        <div class="poll-option" onclick="vote('c')">
+          <div class="poll-option-header">
+            <span>Draw</span>
+            <span id="pct-c">0%</span>
+          </div>
+          <div class="poll-bar-bg"><div class="poll-bar-fill c" id="bar-c" style="width:0%"></div></div>
+        </div>
+        <div class="poll-total" id="poll-total">0 votes</div>
+      </div>
+
+      <!-- Chat Feed -->
+      <div class="chat-feed" id="chat-feed"></div>
+
+      <!-- Stats Bar -->
+      <div class="stats-bar">
+        <div class="player-info">
+          <div class="player-avatar">GJ</div>
+          <div>
+            <div class="player-name">GameJam 2026</div>
+            <div class="player-game">Workshop W-4 - Live Streaming Demo</div>
+          </div>
+        </div>
+        <div class="stats-right">
+          <div class="stat">
+            <div class="stat-value" id="stat-uptime">00:00</div>
+            <div class="stat-label">Uptime</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value" id="stat-latency">--</div>
+            <div class="stat-label">Latency</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value" id="stat-protocol">WebRTC</div>
+            <div class="stat-label">Protocol</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STREAM_NAME = 'live';
+    const SERVER_HOST = window.location.hostname || 'localhost';
+
+    let currentProtocol = 'webrtc';
+    let startTime = Date.now();
+    let votes = { a: 12, b: 8, c: 3 };
+
+    // --- Protocol Switching ---
+    function switchProtocol(protocol) {
+      currentProtocol = protocol;
+
+      document.querySelectorAll('.protocol-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelector(`[onclick="switchProtocol('${protocol}')"]`).classList.add('active');
+
+      document.getElementById('stat-protocol').textContent = protocol.toUpperCase();
+
+      const wrapper = document.getElementById('video-wrapper');
+      const noStream = document.getElementById('no-stream');
+
+      // Remove existing video/iframe
+      const existing = wrapper.querySelector('iframe, video');
+      if (existing) existing.remove();
+
+      if (protocol === 'webrtc') {
+        // MediaMTX serves a built-in WebRTC page
+        const iframe = document.createElement('iframe');
+        iframe.src = `http://${SERVER_HOST}:8889/${STREAM_NAME}`;
+        iframe.allow = 'autoplay';
+        iframe.style.border = 'none';
+        wrapper.insertBefore(iframe, noStream);
+        document.getElementById('stat-latency').textContent = '<1s';
+      } else if (protocol === 'hls') {
+        // Use native HLS or hls.js
+        const video = document.createElement('video');
+        video.autoplay = true;
+        video.muted = true;
+        video.controls = false;
+        const hlsUrl = `http://${SERVER_HOST}:8888/${STREAM_NAME}/index.m3u8`;
+
+        if (video.canPlayType('application/vnd.apple.mpegurl')) {
+          // Safari native HLS
+          video.src = hlsUrl;
+        } else {
+          // Load hls.js for Chrome/Firefox
+          const script = document.createElement('script');
+          script.src = 'https://cdn.jsdelivr.net/npm/hls.js@latest';
+          script.onload = () => {
+            if (Hls.isSupported()) {
+              const hls = new Hls();
+              hls.loadSource(hlsUrl);
+              hls.attachMedia(video);
+            }
+          };
+          document.head.appendChild(script);
+        }
+
+        wrapper.insertBefore(video, noStream);
+        document.getElementById('stat-latency').textContent = '~6s';
+      }
+    }
+
+    // --- Poll System ---
+    function vote(option) {
+      votes[option]++;
+      updatePoll();
+    }
+
+    function updatePoll() {
+      const total = votes.a + votes.b + votes.c;
+      ['a', 'b', 'c'].forEach(key => {
+        const pct = Math.round((votes[key] / total) * 100);
+        document.getElementById(`pct-${key}`).textContent = `${pct}%`;
+        document.getElementById(`bar-${key}`).style.width = `${pct}%`;
+      });
+      document.getElementById('poll-total').textContent = `${total} votes`;
+    }
+
+    // --- Simulated Chat ---
+    const chatNames = [
+      { nick: 'StreamFan42', color: '#e91e63' },
+      { nick: 'ProGamer_X', color: '#2196f3' },
+      { nick: 'PixelWizard', color: '#4caf50' },
+      { nick: 'EsportsNerd', color: '#ff9800' },
+      { nick: 'CasualViewer', color: '#9c27b0' },
+      { nick: 'TechExplorer', color: '#00bcd4' },
+    ];
+
+    const chatMessages = [
+      'This is awesome!',
+      'How is the latency so low??',
+      'WebRTC is insane',
+      'Can we get a poll going?',
+      'GG!',
+      'What protocol is this using?',
+      'The overlay looks clean',
+      'Sub-second latency wow',
+      'Team Alpha all the way!',
+      'Is this open source?',
+      'MediaMTX is so easy to set up',
+      'This would be great for esports',
+      'Love the interactive features',
+      'How many viewers can this handle?',
+    ];
+
+    function addChatMessage() {
+      const feed = document.getElementById('chat-feed');
+      const user = chatNames[Math.floor(Math.random() * chatNames.length)];
+      const msg = chatMessages[Math.floor(Math.random() * chatMessages.length)];
+
+      const el = document.createElement('div');
+      el.className = 'chat-msg';
+      el.innerHTML = `<span class="nick" style="color:${user.color}">${user.nick}:</span>${msg}`;
+
+      feed.appendChild(el);
+
+      // Keep only last 6 messages
+      while (feed.children.length > 6) {
+        feed.removeChild(feed.firstChild);
+      }
+    }
+
+    // --- Uptime Counter ---
+    function updateUptime() {
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      const mins = String(Math.floor(elapsed / 60)).padStart(2, '0');
+      const secs = String(elapsed % 60).padStart(2, '0');
+      document.getElementById('stat-uptime').textContent = `${mins}:${secs}`;
+    }
+
+    // --- Simulated Viewer Count ---
+    function updateViewers() {
+      const base = 142;
+      const jitter = Math.floor(Math.random() * 20) - 10;
+      document.getElementById('viewer-count').textContent = base + jitter;
+    }
+
+    // --- Simulated Poll Updates ---
+    function simulatePollVote() {
+      const options = ['a', 'b', 'c'];
+      const weights = [0.5, 0.35, 0.15];
+      const r = Math.random();
+      let pick = 'a';
+      if (r > weights[0]) pick = 'b';
+      if (r > weights[0] + weights[1]) pick = 'c';
+      votes[pick]++;
+      updatePoll();
+    }
+
+    // --- Init ---
+    updatePoll();
+    switchProtocol('webrtc');
+
+    setInterval(updateUptime, 1000);
+    setInterval(updateViewers, 3000);
+    setInterval(addChatMessage, 2500);
+    setInterval(simulatePollVote, 4000);
+  </script>
+</body>
+</html>

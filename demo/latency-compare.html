@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Latency Comparison - WebRTC vs HLS</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #111;
+      color: #fff;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      padding: 20px;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #888;
+      font-size: 14px;
+      margin-bottom: 24px;
+    }
+
+    .compare-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .panel {
+      background: #1a1a1a;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 2px solid transparent;
+    }
+
+    .panel.webrtc { border-color: #e91e63; }
+    .panel.hls { border-color: #2196f3; }
+
+    .panel-header {
+      padding: 12px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .panel.webrtc .panel-header { background: rgba(233,30,99,0.15); }
+    .panel.hls .panel-header { background: rgba(33,150,243,0.15); }
+
+    .panel-title {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .panel.webrtc .panel-title { color: #e91e63; }
+    .panel.hls .panel-title { color: #2196f3; }
+
+    .latency-badge {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .panel.webrtc .latency-badge {
+      background: #e91e63;
+      color: #fff;
+    }
+
+    .panel.hls .latency-badge {
+      background: #2196f3;
+      color: #fff;
+    }
+
+    .video-container {
+      position: relative;
+      width: 100%;
+      padding-top: 56.25%; /* 16:9 */
+    }
+
+    .video-container iframe,
+    .video-container video {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+      border: none;
+      background: #000;
+    }
+
+    .panel-footer {
+      padding: 12px 16px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      color: #888;
+    }
+
+    .info-cards {
+      max-width: 1400px;
+      margin: 24px auto 0;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .info-card {
+      background: #1a1a1a;
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .info-card h3 {
+      font-size: 14px;
+      color: #ffd740;
+      margin-bottom: 6px;
+    }
+
+    .info-card p {
+      font-size: 13px;
+      color: #aaa;
+      line-height: 1.5;
+    }
+
+    .instructions {
+      max-width: 1400px;
+      margin: 24px auto 0;
+      background: rgba(255,255,255,0.05);
+      border-radius: 8px;
+      padding: 16px;
+      font-size: 13px;
+      color: #888;
+    }
+
+    .instructions code {
+      background: rgba(255,255,255,0.1);
+      padding: 2px 6px;
+      border-radius: 3px;
+      color: #00e5ff;
+    }
+  </style>
+</head>
+<body>
+  <h1>Latency Comparison: WebRTC vs HLS</h1>
+  <p class="subtitle">Same stream, same server, different protocols. Watch the delay difference.</p>
+
+  <div class="compare-grid">
+    <div class="panel webrtc">
+      <div class="panel-header">
+        <span class="panel-title">WebRTC (WHEP)</span>
+        <span class="latency-badge">&lt; 1 second</span>
+      </div>
+      <div class="video-container">
+        <iframe id="webrtc-player" src="http://localhost:8889/live" allow="autoplay"></iframe>
+      </div>
+      <div class="panel-footer">
+        <span>Protocol: WHEP (WebRTC)</span>
+        <span>Port: 8889</span>
+      </div>
+    </div>
+
+    <div class="panel hls">
+      <div class="panel-header">
+        <span class="panel-title">HLS</span>
+        <span class="latency-badge">~ 6 seconds</span>
+      </div>
+      <div class="video-container">
+        <iframe id="hls-player" src="http://localhost:8888/live" allow="autoplay"></iframe>
+      </div>
+      <div class="panel-footer">
+        <span>Protocol: HLS (.m3u8)</span>
+        <span>Port: 8888</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="info-cards">
+    <div class="info-card">
+      <h3>Why the difference?</h3>
+      <p>HLS breaks video into small file segments (2-6s each). The player must download a segment before playing. WebRTC streams frame-by-frame over UDP, like a video call.</p>
+    </div>
+    <div class="info-card">
+      <h3>When to use HLS</h3>
+      <p>Large audiences, broad device support, passive viewing. Works everywhere. Great when 6-second delay is acceptable (watching a tournament, VOD-style).</p>
+    </div>
+    <div class="info-card">
+      <h3>When to use WebRTC</h3>
+      <p>Interactive features: live polls, predictions, chat-driven game mechanics, audience participation. Sub-second latency makes real-time interaction possible.</p>
+    </div>
+  </div>
+
+  <div class="instructions">
+    <strong>Setup:</strong> Start MediaMTX (<code>docker compose up</code>), then stream from OBS to
+    <code>rtmp://localhost:1935/live</code>. Both players above will show the same stream with different latency.
+  </div>
+
+  <script>
+    // No additional JS needed - both players use MediaMTX built-in pages via iframes
+  </script>
+</body>
+</html>
