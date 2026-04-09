@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WHIP Ingest - Browser Live Publisher</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0f0f0f;
+      color: #fff;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      padding: 20px;
+      min-height: 100vh;
+    }
+
+    .demo-nav {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      display: flex;
+      gap: 4px;
+      background: rgba(0,0,0,0.8);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      padding: 4px;
+      z-index: 100;
+      backdrop-filter: blur(10px);
+    }
+    .demo-nav a {
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #888;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .demo-nav a:hover { color: #fff; background: rgba(255,255,255,0.1); }
+    .demo-nav a.active { color: #fff; background: #4caf50; }
+
+    h1 {
+      text-align: center;
+      font-size: 24px;
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #888;
+      font-size: 14px;
+      margin-bottom: 28px;
+    }
+
+    .subtitle code {
+      background: rgba(255,255,255,0.1);
+      padding: 2px 6px;
+      border-radius: 3px;
+      color: #4caf50;
+    }
+
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 24px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    /* -- Preview panel -- */
+    .preview-panel {
+      background: #1a1a1a;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 2px solid #333;
+      display: flex;
+      flex-direction: column;
+      transition: border-color 0.3s;
+    }
+
+    .preview-panel.live {
+      border-color: #4caf50;
+    }
+
+    .preview-header {
+      padding: 12px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(255,255,255,0.03);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .preview-label {
+      font-size: 14px;
+      font-weight: 600;
+      color: #aaa;
+    }
+
+    .preview-badge {
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .preview-badge.stopped { background: #333; color: #888; }
+    .preview-badge.connecting { background: rgba(255,193,7,0.2); color: #ffc107; }
+    .preview-badge.live { background: rgba(76,175,80,0.2); color: #4caf50; animation: pulse-badge 2s infinite; }
+    .preview-badge.error { background: rgba(244,67,54,0.2); color: #f44336; }
+
+    @keyframes pulse-badge {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
+    .video-wrap {
+      position: relative;
+      width: 100%;
+      padding-top: 56.25%;
+      background: #000;
+    }
+
+    .video-wrap video {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #000;
+    }
+
+    .video-placeholder {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #555;
+      gap: 12px;
+    }
+
+    .video-placeholder svg {
+      width: 64px;
+      height: 64px;
+      opacity: 0.3;
+    }
+
+    .video-placeholder span {
+      font-size: 14px;
+    }
+
+    .preview-footer {
+      padding: 10px 16px;
+      font-size: 12px;
+      color: #555;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* -- Controls panel -- */
+    .controls-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .control-card {
+      background: #1a1a1a;
+      border-radius: 10px;
+      padding: 16px;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .control-card h3 {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: #666;
+      margin-bottom: 12px;
+    }
+
+    .field {
+      margin-bottom: 12px;
+    }
+
+    .field:last-child {
+      margin-bottom: 0;
+    }
+
+    .field label {
+      display: block;
+      font-size: 12px;
+      color: #999;
+      margin-bottom: 5px;
+      font-weight: 600;
+    }
+
+    .field input[type="text"],
+    .field select {
+      width: 100%;
+      padding: 9px 12px;
+      background: #111;
+      border: 1px solid #333;
+      border-radius: 6px;
+      color: #fff;
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .field input[type="text"]:focus,
+    .field select:focus {
+      border-color: #4caf50;
+    }
+
+    .field select {
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23888' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      padding-right: 30px;
+    }
+
+    .path-preview {
+      margin-top: 6px;
+      font-size: 11px;
+      color: #555;
+      word-break: break-all;
+    }
+
+    .path-preview span {
+      color: #4caf50;
+    }
+
+    /* -- Go live button -- */
+    .btn-golive {
+      width: 100%;
+      padding: 16px;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      transition: all 0.2s;
+      font-family: inherit;
+    }
+
+    .btn-golive.start {
+      background: #4caf50;
+      color: #fff;
+      box-shadow: 0 0 20px rgba(76,175,80,0.3);
+    }
+
+    .btn-golive.start:hover {
+      background: #43a047;
+      box-shadow: 0 0 30px rgba(76,175,80,0.5);
+    }
+
+    .btn-golive.stop {
+      background: #f44336;
+      color: #fff;
+      box-shadow: 0 0 20px rgba(244,67,54,0.3);
+    }
+
+    .btn-golive.stop:hover {
+      background: #e53935;
+      box-shadow: 0 0 30px rgba(244,67,54,0.5);
+    }
+
+    .btn-golive:disabled {
+      background: #333;
+      color: #666;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    /* -- Status card -- */
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.03);
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .status-dot.stopped { background: #555; }
+    .status-dot.connecting { background: #ffc107; animation: blink 1s infinite; }
+    .status-dot.live { background: #4caf50; box-shadow: 0 0 8px rgba(76,175,80,0.6); }
+    .status-dot.error { background: #f44336; }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    .status-text {
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .status-text.stopped { color: #555; }
+    .status-text.connecting { color: #ffc107; }
+    .status-text.live { color: #4caf50; }
+    .status-text.error { color: #f44336; }
+
+    /* -- Error message -- */
+    .error-msg {
+      display: none;
+      background: rgba(244,67,54,0.1);
+      border: 1px solid rgba(244,67,54,0.3);
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: 13px;
+      color: #f44336;
+      line-height: 1.5;
+    }
+
+    .error-msg.visible {
+      display: block;
+    }
+
+    /* -- Playback URLs info section -- */
+    .playback-info {
+      display: none;
+      background: rgba(76,175,80,0.06);
+      border: 1px solid rgba(76,175,80,0.2);
+      border-radius: 12px;
+      padding: 20px;
+      max-width: 1200px;
+      margin: 24px auto 0;
+    }
+
+    .playback-info.visible {
+      display: block;
+      animation: fadeUp 0.4s ease;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .playback-info h3 {
+      font-size: 14px;
+      color: #4caf50;
+      margin-bottom: 14px;
+      font-weight: 700;
+    }
+
+    .url-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+      padding: 10px 14px;
+      background: rgba(0,0,0,0.3);
+      border-radius: 6px;
+    }
+
+    .url-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .url-label {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #888;
+      min-width: 60px;
+    }
+
+    .url-value {
+      font-size: 13px;
+      color: #00e5ff;
+      font-family: 'Consolas', 'Monaco', monospace;
+      word-break: break-all;
+      flex: 1;
+    }
+
+    .url-copy {
+      padding: 4px 10px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 4px;
+      color: #aaa;
+      font-size: 11px;
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: 600;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+
+    .url-copy:hover {
+      background: rgba(255,255,255,0.15);
+      color: #fff;
+    }
+
+    .url-copy.copied {
+      background: rgba(76,175,80,0.2);
+      color: #4caf50;
+      border-color: rgba(76,175,80,0.3);
+    }
+
+    /* -- Responsive -- */
+    @media (max-width: 860px) {
+      .main-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <nav class="demo-nav">
+    <a href="index.html">Dashboard</a>
+    <a href="overlay.html">Overlay</a>
+    <a href="latency-compare.html">Latency Compare</a>
+    <a href="whip-ingest.html" class="active">WHIP Ingest</a>
+    <a href="api-explorer.html">API Explorer</a>
+  </nav>
+
+  <h1>Browser Live Publisher</h1>
+  <p class="subtitle">Stream your camera or screen directly to MediaMTX via <code>WebRTC WHIP</code> &mdash; no OBS required</p>
+
+  <div class="main-grid">
+    <!-- Left: Preview -->
+    <div class="preview-panel" id="preview-panel">
+      <div class="preview-header">
+        <span class="preview-label">Local Preview</span>
+        <span class="preview-badge stopped" id="preview-badge">Stopped</span>
+      </div>
+      <div class="video-wrap">
+        <video id="preview-video" autoplay muted playsinline></video>
+        <div class="video-placeholder" id="video-placeholder">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M23 7l-7 5 7 5V7z"/>
+            <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+          </svg>
+          <span>Select a source and go live</span>
+        </div>
+      </div>
+      <div class="preview-footer">
+        <span id="preview-res">--</span>
+        <span id="preview-time">00:00</span>
+      </div>
+    </div>
+
+    <!-- Right: Controls -->
+    <div class="controls-panel">
+      <!-- Stream path -->
+      <div class="control-card">
+        <h3>Stream Path</h3>
+        <div class="field">
+          <label for="stream-path">Path on MediaMTX</label>
+          <input type="text" id="stream-path" value="browser" placeholder="e.g. browser, mycam, demo">
+          <div class="path-preview">WHIP endpoint: <span id="whip-url-preview">--</span></div>
+        </div>
+      </div>
+
+      <!-- Source -->
+      <div class="control-card">
+        <h3>Source</h3>
+        <div class="field">
+          <label for="source-select">Capture source</label>
+          <select id="source-select">
+            <option value="camera">Camera</option>
+            <option value="screen">Screen Share</option>
+            <option value="both">Camera + Screen (PiP)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="res-select">Resolution</label>
+          <select id="res-select">
+            <option value="1280:720">720p</option>
+            <option value="854:480">480p</option>
+            <option value="640:360">360p</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Go live button -->
+      <button class="btn-golive start" id="btn-golive" onclick="toggleStream()">Go Live</button>
+
+      <!-- Status -->
+      <div class="control-card">
+        <h3>Connection</h3>
+        <div class="status-indicator">
+          <div class="status-dot stopped" id="status-dot"></div>
+          <span class="status-text stopped" id="status-text">Stopped</span>
+        </div>
+      </div>
+
+      <!-- Error display -->
+      <div class="error-msg" id="error-msg"></div>
+    </div>
+  </div>
+
+  <!-- Playback URLs -->
+  <div class="playback-info" id="playback-info">
+    <h3>Your stream is now available at:</h3>
+    <div class="url-row">
+      <span class="url-label">WebRTC</span>
+      <span class="url-value" id="playback-webrtc">--</span>
+      <button class="url-copy" onclick="copyUrl(this, 'playback-webrtc')">Copy</button>
+    </div>
+    <div class="url-row">
+      <span class="url-label">HLS</span>
+      <span class="url-value" id="playback-hls">--</span>
+      <button class="url-copy" onclick="copyUrl(this, 'playback-hls')">Copy</button>
+    </div>
+  </div>
+
+  <script>
+    // --- Config ---
+    const host = localStorage.getItem('streamlab-host') || window.location.hostname || 'localhost';
+
+    // --- State ---
+    let pc = null;
+    let localStream = null;
+    let canvasStream = null;
+    let screenStream = null;
+    let isStreaming = false;
+    let streamStartTime = null;
+    let uptimeInterval = null;
+
+    // --- DOM refs ---
+    const previewVideo = document.getElementById('preview-video');
+    const placeholder = document.getElementById('video-placeholder');
+    const previewPanel = document.getElementById('preview-panel');
+    const previewBadge = document.getElementById('preview-badge');
+    const previewRes = document.getElementById('preview-res');
+    const previewTime = document.getElementById('preview-time');
+    const btnGoLive = document.getElementById('btn-golive');
+    const statusDot = document.getElementById('status-dot');
+    const statusText = document.getElementById('status-text');
+    const errorMsg = document.getElementById('error-msg');
+    const pathInput = document.getElementById('stream-path');
+    const sourceSelect = document.getElementById('source-select');
+    const resSelect = document.getElementById('res-select');
+    const playbackInfo = document.getElementById('playback-info');
+    const whipPreview = document.getElementById('whip-url-preview');
+
+    // --- URL preview ---
+    function updateUrlPreview() {
+      const path = pathInput.value.trim() || 'browser';
+      whipPreview.textContent = 'http://' + host + ':8889/' + path + '/whip';
+      document.getElementById('playback-webrtc').textContent = 'http://' + host + ':8889/' + path;
+      document.getElementById('playback-hls').textContent = 'http://' + host + ':8888/' + path;
+    }
+
+    pathInput.addEventListener('input', updateUrlPreview);
+    updateUrlPreview();
+
+    // --- Status helpers ---
+    function setStatus(state, label) {
+      statusDot.className = 'status-dot ' + state;
+      statusText.className = 'status-text ' + state;
+      statusText.textContent = label;
+
+      previewBadge.className = 'preview-badge ' + state;
+      previewBadge.textContent = label;
+
+      if (state === 'live') {
+        previewPanel.classList.add('live');
+      } else {
+        previewPanel.classList.remove('live');
+      }
+    }
+
+    function showError(msg) {
+      errorMsg.textContent = msg;
+      errorMsg.classList.add('visible');
+    }
+
+    function hideError() {
+      errorMsg.classList.remove('visible');
+    }
+
+    // --- Lock/unlock controls while streaming ---
+    function lockControls(locked) {
+      pathInput.disabled = locked;
+      sourceSelect.disabled = locked;
+      resSelect.disabled = locked;
+    }
+
+    // --- Get media based on source selection ---
+    async function acquireMedia() {
+      const source = sourceSelect.value;
+      const parts = resSelect.value.split(':');
+      const w = parseInt(parts[0], 10);
+      const h = parseInt(parts[1], 10);
+
+      if (source === 'camera') {
+        localStream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: w }, height: { ideal: h }, frameRate: { ideal: 30 } },
+          audio: true
+        });
+        return localStream;
+      }
+
+      if (source === 'screen') {
+        localStream = await navigator.mediaDevices.getDisplayMedia({
+          video: { width: { ideal: w }, height: { ideal: h } },
+          audio: true
+        });
+        // Stop streaming if user clicks browser "Stop sharing"
+        localStream.getVideoTracks()[0].addEventListener('ended', function() {
+          if (isStreaming) stopStream();
+        });
+        return localStream;
+      }
+
+      if (source === 'both') {
+        // Screen + camera overlay via canvas compositing
+        screenStream = await navigator.mediaDevices.getDisplayMedia({
+          video: { width: { ideal: w }, height: { ideal: h } },
+          audio: true
+        });
+        var camStream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 320 }, height: { ideal: 240 } },
+          audio: true
+        });
+        localStream = camStream;
+
+        var canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        var ctx = canvas.getContext('2d');
+
+        var screenVid = document.createElement('video');
+        screenVid.srcObject = screenStream;
+        screenVid.muted = true;
+        screenVid.play();
+
+        var camVid = document.createElement('video');
+        camVid.srcObject = camStream;
+        camVid.muted = true;
+        camVid.play();
+
+        function drawFrame() {
+          if (!isStreaming) return;
+          ctx.drawImage(screenVid, 0, 0, w, h);
+          // Camera PiP in bottom-right corner
+          var pipW = Math.round(w * 0.25);
+          var pipH = Math.round(h * 0.25);
+          var margin = 16;
+          // Draw rounded border effect
+          ctx.save();
+          ctx.shadowColor = 'rgba(0,0,0,0.5)';
+          ctx.shadowBlur = 8;
+          ctx.drawImage(camVid, w - pipW - margin, h - pipH - margin, pipW, pipH);
+          ctx.restore();
+          requestAnimationFrame(drawFrame);
+        }
+
+        // Wait for both videos to be playing
+        await new Promise(function(resolve) { screenVid.onplaying = resolve; });
+        await new Promise(function(resolve) { camVid.onplaying = resolve; });
+
+        drawFrame();
+
+        canvasStream = canvas.captureStream(30);
+
+        // Add audio from camera mic
+        var audioTracks = camStream.getAudioTracks();
+        if (audioTracks.length > 0) {
+          canvasStream.addTrack(audioTracks[0]);
+        } else {
+          var screenAudioTracks = screenStream.getAudioTracks();
+          if (screenAudioTracks.length > 0) {
+            canvasStream.addTrack(screenAudioTracks[0]);
+          }
+        }
+
+        // When screen share ends, stop everything
+        screenStream.getVideoTracks()[0].addEventListener('ended', function() {
+          if (isStreaming) stopStream();
+        });
+
+        return canvasStream;
+      }
+    }
+
+    // --- WHIP publish ---
+    async function startStream() {
+      hideError();
+      setStatus('connecting', 'Connecting...');
+      btnGoLive.disabled = true;
+      lockControls(true);
+
+      var stream;
+      try {
+        isStreaming = true; // set early so canvas draw loop runs for PiP mode
+        stream = await acquireMedia();
+      } catch (err) {
+        isStreaming = false;
+        btnGoLive.disabled = false;
+        lockControls(false);
+        setStatus('error', 'Error');
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          showError('Camera access denied. Please allow camera/microphone permissions in your browser and try again.');
+        } else if (err.name === 'NotFoundError') {
+          showError('No camera or microphone found. Check that a device is connected.');
+        } else if (err.name === 'NotSupportedError' || err.name === 'TypeError') {
+          showError('Screen sharing is not supported in this browser.');
+        } else if (err.name === 'AbortError') {
+          showError('Screen sharing was cancelled.');
+          setStatus('stopped', 'Stopped');
+        } else {
+          showError('Could not access media: ' + err.message);
+        }
+        return;
+      }
+
+      // Show preview
+      previewVideo.srcObject = stream;
+      placeholder.style.display = 'none';
+
+      var videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack) {
+        var settings = videoTrack.getSettings();
+        previewRes.textContent = (settings.width || '?') + 'x' + (settings.height || '?');
+      }
+
+      // Create peer connection
+      pc = new RTCPeerConnection();
+
+      stream.getTracks().forEach(function(track) {
+        pc.addTrack(track, stream);
+      });
+
+      pc.onconnectionstatechange = function() {
+        var state = pc.connectionState;
+        if (state === 'connected') {
+          setStatus('live', 'Live');
+          btnGoLive.disabled = false;
+          btnGoLive.textContent = 'Stop Stream';
+          btnGoLive.className = 'btn-golive stop';
+          playbackInfo.classList.add('visible');
+          startUptime();
+        } else if (state === 'failed') {
+          showError('Connection lost. The peer connection failed.');
+          stopStream();
+        } else if (state === 'disconnected') {
+          setStatus('connecting', 'Reconnecting...');
+        }
+      };
+
+      // Create offer and POST via WHIP
+      try {
+        var offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+
+        var path = pathInput.value.trim() || 'browser';
+        var whipUrl = 'http://' + host + ':8889/' + path + '/whip';
+
+        var res = await fetch(whipUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/sdp' },
+          body: pc.localDescription.sdp
+        });
+
+        if (!res.ok) {
+          throw new Error('Server returned ' + res.status);
+        }
+
+        var answerSdp = await res.text();
+        await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+
+      } catch (err) {
+        setStatus('error', 'Error');
+        showError('Connection failed \u2014 is MediaMTX running? (' + err.message + ')');
+        cleanupMedia();
+        isStreaming = false;
+        btnGoLive.disabled = false;
+        lockControls(false);
+        btnGoLive.textContent = 'Go Live';
+        btnGoLive.className = 'btn-golive start';
+        previewVideo.srcObject = null;
+        placeholder.style.display = '';
+        previewRes.textContent = '--';
+        return;
+      }
+    }
+
+    function stopStream() {
+      isStreaming = false;
+
+      if (pc) {
+        pc.close();
+        pc = null;
+      }
+
+      cleanupMedia();
+
+      previewVideo.srcObject = null;
+      placeholder.style.display = '';
+      previewRes.textContent = '--';
+      previewTime.textContent = '00:00';
+
+      setStatus('stopped', 'Stopped');
+      btnGoLive.textContent = 'Go Live';
+      btnGoLive.className = 'btn-golive start';
+      btnGoLive.disabled = false;
+      lockControls(false);
+      playbackInfo.classList.remove('visible');
+      hideError();
+      stopUptime();
+    }
+
+    function cleanupMedia() {
+      if (localStream) {
+        localStream.getTracks().forEach(function(t) { t.stop(); });
+        localStream = null;
+      }
+      if (screenStream) {
+        screenStream.getTracks().forEach(function(t) { t.stop(); });
+        screenStream = null;
+      }
+      if (canvasStream) {
+        canvasStream.getTracks().forEach(function(t) { t.stop(); });
+        canvasStream = null;
+      }
+      if (previewVideo.srcObject) {
+        previewVideo.srcObject.getTracks().forEach(function(t) { t.stop(); });
+      }
+    }
+
+    function toggleStream() {
+      if (isStreaming) {
+        stopStream();
+      } else {
+        startStream();
+      }
+    }
+
+    // --- Uptime counter ---
+    function startUptime() {
+      streamStartTime = Date.now();
+      uptimeInterval = setInterval(function() {
+        var elapsed = Math.floor((Date.now() - streamStartTime) / 1000);
+        var m = String(Math.floor(elapsed / 60)).padStart(2, '0');
+        var s = String(elapsed % 60).padStart(2, '0');
+        previewTime.textContent = m + ':' + s;
+      }, 1000);
+    }
+
+    function stopUptime() {
+      if (uptimeInterval) {
+        clearInterval(uptimeInterval);
+        uptimeInterval = null;
+      }
+      streamStartTime = null;
+    }
+
+    // --- Copy URL ---
+    function copyUrl(btn, id) {
+      var text = document.getElementById(id).textContent;
+      navigator.clipboard.writeText(text).then(function() {
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(function() {
+          btn.textContent = 'Copy';
+          btn.classList.remove('copied');
+        }, 1500);
+      });
+    }
+  </script>
+</body>
+</html>

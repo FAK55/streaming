@@ -14,6 +14,32 @@
       overflow: hidden;
     }
 
+    .demo-nav {
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 4px;
+      background: rgba(0,0,0,0.8);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      padding: 4px;
+      z-index: 100;
+      backdrop-filter: blur(10px);
+    }
+    .demo-nav a {
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #888;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .demo-nav a:hover { color: #fff; background: rgba(255,255,255,0.1); }
+    .demo-nav a.active { color: #fff; background: #e91e63; }
+
     .container {
       position: relative;
       width: 100vw;
@@ -228,10 +254,55 @@
       margin-right: 6px;
     }
 
+    .chat-input {
+      position: absolute;
+      bottom: 72px;
+      left: 20px;
+      width: 300px;
+      background: rgba(0,0,0,0.7);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 13px;
+      color: #fff;
+      font-family: inherit;
+      outline: none;
+    }
+
+    .chat-input::placeholder {
+      color: #888;
+    }
+
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(10px); }
       to { opacity: 1; transform: translateY(0); }
     }
+
+    /* --- Connection Status Indicator --- */
+    .connection-status {
+      position: absolute;
+      top: 52px;
+      left: 20px;
+      background: rgba(0,0,0,0.7);
+      padding: 5px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .connection-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ffc107;
+    }
+
+    .connection-dot.connected { background: #4caf50; }
+    .connection-dot.connecting { background: #ffc107; }
+    .connection-dot.disconnected { background: #f44336; }
+    .connection-dot.failed { background: #f44336; }
 
     /* --- No Stream Message --- */
     .no-stream {
@@ -313,6 +384,12 @@
       <!-- Live Badge -->
       <div class="live-badge">LIVE</div>
 
+      <!-- Connection Status -->
+      <div class="connection-status" id="connection-status">
+        <div class="connection-dot connecting" id="connection-dot"></div>
+        <span id="connection-label">Connecting...</span>
+      </div>
+
       <!-- Viewer Count -->
       <div class="viewer-count">
         <div class="viewer-dot"></div>
@@ -349,6 +426,9 @@
       <!-- Chat Feed -->
       <div class="chat-feed" id="chat-feed"></div>
 
+      <!-- Chat Input -->
+      <input class="chat-input" id="chat-input" type="text" placeholder="Type a message..." onkeydown="if(event.key==='Enter')sendChat()">
+
       <!-- Stats Bar -->
       <div class="stats-bar">
         <div class="player-info">
@@ -376,15 +456,92 @@
     </div>
   </div>
 
+  <nav class="demo-nav">
+    <a href="index.html">Dashboard</a>
+    <a href="overlay.html" class="active">Overlay</a>
+    <a href="latency-compare.html">Latency</a>
+    <a href="whip-ingest.html">WHIP Ingest</a>
+    <a href="api-explorer.html">API</a>
+  </nav>
+
   <script>
     const STREAM_NAME = 'live';
-    const SERVER_HOST = window.location.hostname || 'localhost';
+    const SERVER_HOST = localStorage.getItem('streamlab-host') || window.location.hostname || 'localhost';
 
     let currentProtocol = 'webrtc';
     let startTime = Date.now();
     let votes = { a: 12, b: 8, c: 3 };
+    let webrtcVideo, hlsVideo, hlsInstance, webrtcPc;
 
-    // --- Protocol Switching ---
+    // --- Initialize both players once on load ---
+    function initPlayers() {
+      const wrapper = document.getElementById('video-wrapper');
+      const noStream = document.getElementById('no-stream');
+
+      // WebRTC player
+      webrtcVideo = document.createElement('video');
+      webrtcVideo.autoplay = true;
+      webrtcVideo.muted = true;
+      webrtcVideo.playsInline = true;
+      webrtcVideo.controls = false;
+      webrtcVideo.style.background = '#000';
+      webrtcVideo.id = 'webrtc-video';
+      wrapper.insertBefore(webrtcVideo, noStream);
+
+      const whepUrl = `http://${SERVER_HOST}:8889/${STREAM_NAME}/whep`;
+      const pc = new RTCPeerConnection();
+      webrtcPc = pc;
+
+      pc.onconnectionstatechange = () => {
+        updateConnectionStatus(pc.connectionState);
+      };
+
+      pc.addTransceiver('video', { direction: 'recvonly' });
+      pc.addTransceiver('audio', { direction: 'recvonly' });
+      pc.ontrack = (e) => {
+        webrtcVideo.srcObject = e.streams[0];
+        noStream.style.display = 'none';
+      };
+      pc.createOffer().then(offer => {
+        pc.setLocalDescription(offer);
+        return fetch(whepUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/sdp' },
+          body: offer.sdp
+        });
+      }).then(res => res.text()).then(sdp => {
+        pc.setRemoteDescription({ type: 'answer', sdp });
+      }).catch(() => {});
+
+      // HLS player
+      hlsVideo = document.createElement('video');
+      hlsVideo.autoplay = true;
+      hlsVideo.muted = true;
+      hlsVideo.playsInline = true;
+      hlsVideo.controls = false;
+      hlsVideo.style.background = '#000';
+      hlsVideo.style.display = 'none';
+      hlsVideo.id = 'hls-video';
+      wrapper.insertBefore(hlsVideo, noStream);
+
+      const hlsUrl = `http://${SERVER_HOST}:8888/${STREAM_NAME}/index.m3u8`;
+      if (hlsVideo.canPlayType('application/vnd.apple.mpegurl')) {
+        hlsVideo.src = hlsUrl;
+      } else {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/hls.js@latest';
+        script.onload = () => {
+          if (Hls.isSupported()) {
+            hlsInstance = new Hls();
+            hlsInstance.loadSource(hlsUrl);
+            hlsInstance.attachMedia(hlsVideo);
+          }
+        };
+        document.head.appendChild(script);
+      }
+    }
+
+    // --- Protocol Switching (just toggle visibility) ---
     function switchProtocol(protocol) {
       currentProtocol = protocol;
 
@@ -393,47 +550,13 @@
 
       document.getElementById('stat-protocol').textContent = protocol.toUpperCase();
 
-      const wrapper = document.getElementById('video-wrapper');
-      const noStream = document.getElementById('no-stream');
-
-      // Remove existing video/iframe
-      const existing = wrapper.querySelector('iframe, video');
-      if (existing) existing.remove();
-
       if (protocol === 'webrtc') {
-        // MediaMTX serves a built-in WebRTC page
-        const iframe = document.createElement('iframe');
-        iframe.src = `http://${SERVER_HOST}:8889/${STREAM_NAME}`;
-        iframe.allow = 'autoplay';
-        iframe.style.border = 'none';
-        wrapper.insertBefore(iframe, noStream);
+        webrtcVideo.style.display = '';
+        hlsVideo.style.display = 'none';
         document.getElementById('stat-latency').textContent = '<1s';
-      } else if (protocol === 'hls') {
-        // Use native HLS or hls.js
-        const video = document.createElement('video');
-        video.autoplay = true;
-        video.muted = true;
-        video.controls = false;
-        const hlsUrl = `http://${SERVER_HOST}:8888/${STREAM_NAME}/index.m3u8`;
-
-        if (video.canPlayType('application/vnd.apple.mpegurl')) {
-          // Safari native HLS
-          video.src = hlsUrl;
-        } else {
-          // Load hls.js for Chrome/Firefox
-          const script = document.createElement('script');
-          script.src = 'https://cdn.jsdelivr.net/npm/hls.js@latest';
-          script.onload = () => {
-            if (Hls.isSupported()) {
-              const hls = new Hls();
-              hls.loadSource(hlsUrl);
-              hls.attachMedia(video);
-            }
-          };
-          document.head.appendChild(script);
-        }
-
-        wrapper.insertBefore(video, noStream);
+      } else {
+        webrtcVideo.style.display = 'none';
+        hlsVideo.style.display = '';
         document.getElementById('stat-latency').textContent = '~6s';
       }
     }
@@ -481,6 +604,24 @@
       'How many viewers can this handle?',
     ];
 
+    function sendChat() {
+      const input = document.getElementById('chat-input');
+      const text = input.value.trim();
+      if (!text) return;
+
+      const feed = document.getElementById('chat-feed');
+      const el = document.createElement('div');
+      el.className = 'chat-msg';
+      el.innerHTML = `<span class="nick" style="color:#ffd740">Presenter:</span>${text}`;
+      feed.appendChild(el);
+
+      while (feed.children.length > 6) {
+        feed.removeChild(feed.firstChild);
+      }
+
+      input.value = '';
+    }
+
     function addChatMessage() {
       const feed = document.getElementById('chat-feed');
       const user = chatNames[Math.floor(Math.random() * chatNames.length)];
@@ -525,8 +666,40 @@
       updatePoll();
     }
 
+    // --- Connection Status ---
+    function updateConnectionStatus(state) {
+      const dot = document.getElementById('connection-dot');
+      const label = document.getElementById('connection-label');
+      dot.className = 'connection-dot';
+
+      switch (state) {
+        case 'connected':
+          dot.classList.add('connected');
+          label.textContent = 'Connected';
+          break;
+        case 'connecting':
+        case 'new':
+          dot.classList.add('connecting');
+          label.textContent = 'Connecting...';
+          break;
+        case 'disconnected':
+        case 'closed':
+          dot.classList.add('disconnected');
+          label.textContent = 'Disconnected';
+          break;
+        case 'failed':
+          dot.classList.add('failed');
+          label.textContent = 'Disconnected';
+          break;
+        default:
+          dot.classList.add('connecting');
+          label.textContent = 'Connecting...';
+      }
+    }
+
     // --- Init ---
     updatePoll();
+    initPlayers();
     switchProtocol('webrtc');
 
     setInterval(updateUptime, 1000);

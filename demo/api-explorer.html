@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Explorer — MediaMTX REST API</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0f0f0f;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      color: #fff;
+      padding: 20px;
+      padding-top: 24px;
+      min-height: 100vh;
+    }
+
+    .demo-nav {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      display: flex;
+      gap: 4px;
+      background: rgba(0,0,0,0.8);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      padding: 4px;
+      z-index: 100;
+      backdrop-filter: blur(10px);
+    }
+    .demo-nav a {
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #888;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .demo-nav a:hover { color: #fff; background: rgba(255,255,255,0.1); }
+    .demo-nav a.active { color: #0f0f0f; background: #00f0ff; }
+
+    h1 {
+      font-size: 24px;
+      margin-bottom: 4px;
+    }
+    h1 span { color: #00f0ff; }
+
+    .subtitle {
+      color: #888;
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
+
+    /* --- Endpoint Tabs --- */
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+    .tab {
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #888;
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      cursor: pointer;
+      transition: all 0.2s;
+      user-select: none;
+    }
+    .tab:hover { color: #fff; border-color: #444; }
+    .tab.active {
+      color: #0f0f0f;
+      background: #00f0ff;
+      border-color: #00f0ff;
+    }
+
+    /* --- JSON Panel --- */
+    .json-panel {
+      background: #111;
+      border: 1px solid #2a2a2a;
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+
+    .json-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      background: #1a1a1a;
+      border-bottom: 1px solid #2a2a2a;
+      font-size: 13px;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .json-url {
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      color: #00f0ff;
+      font-size: 12px;
+      flex: 1;
+      min-width: 200px;
+    }
+    .json-url .method { color: #4caf50; font-weight: 700; margin-right: 6px; }
+
+    .json-meta {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      font-size: 12px;
+      color: #888;
+    }
+
+    .status-badge {
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: 11px;
+    }
+    .status-ok { background: rgba(76,175,80,0.2); color: #4caf50; }
+    .status-err { background: rgba(244,67,54,0.2); color: #f44336; }
+
+    .response-time { color: #ffd740; }
+
+    .copy-btn {
+      padding: 4px 12px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      background: #2a2a2a;
+      color: #888;
+      border: 1px solid #3a3a3a;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .copy-btn:hover { color: #fff; border-color: #555; }
+    .copy-btn.copied { color: #4caf50; border-color: #4caf50; }
+
+    .json-body {
+      padding: 16px;
+      overflow-x: auto;
+      max-height: 55vh;
+      overflow-y: auto;
+    }
+
+    .json-body pre {
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      white-space: pre;
+      tab-size: 2;
+      color: #ccc;
+    }
+
+    /* Syntax colors */
+    .json-body .jk { color: #00f0ff; }
+    .json-body .js { color: #4caf50; }
+    .json-body .jn { color: #ffd740; }
+    .json-body .jb { color: #e91e63; }
+    .json-body .jl { color: #666; }
+
+    /* Error state */
+    .error-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 16px;
+      text-align: center;
+      gap: 12px;
+    }
+    .error-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #f44336;
+      box-shadow: 0 0 12px #f44336;
+      animation: pulse-red 1.5s infinite;
+    }
+    @keyframes pulse-red {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .error-msg { color: #f44336; font-size: 15px; font-weight: 600; }
+    .error-hint { color: #666; font-size: 13px; }
+
+    /* --- Stats Cards --- */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+    }
+
+    .stat-card {
+      background: #111;
+      border: 1px solid #2a2a2a;
+      border-radius: 10px;
+      padding: 16px;
+      text-align: center;
+      transition: border-color 0.3s;
+    }
+    .stat-card:hover { border-color: #444; }
+
+    .stat-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #666;
+      margin-bottom: 6px;
+    }
+
+    .stat-value {
+      font-size: 28px;
+      font-weight: 700;
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    }
+
+    .stat-value.cyan { color: #00f0ff; }
+    .stat-value.green { color: #4caf50; }
+    .stat-value.amber { color: #ffd740; }
+    .stat-value.magenta { color: #e91e63; }
+
+    /* Scrollbar */
+    .json-body::-webkit-scrollbar { width: 6px; height: 6px; }
+    .json-body::-webkit-scrollbar-track { background: transparent; }
+    .json-body::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+    .json-body::-webkit-scrollbar-thumb:hover { background: #555; }
+
+    /* Auto-refresh indicator */
+    .refresh-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #4caf50;
+      display: inline-block;
+      animation: pulse-green 2s infinite;
+    }
+    @keyframes pulse-green {
+      0%, 100% { opacity: 1; box-shadow: 0 0 4px #4caf50; }
+      50% { opacity: 0.3; box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="demo-nav">
+    <a href="index.html">Dashboard</a>
+    <a href="overlay.html">Overlay</a>
+    <a href="latency-compare.html">Latency Compare</a>
+    <a href="whip-ingest.html">WHIP Ingest</a>
+    <a href="api-explorer.html" class="active">API Explorer</a>
+  </nav>
+
+  <h1><span>API</span> Explorer</h1>
+  <p class="subtitle">Live MediaMTX REST API responses — everything is programmable. <span class="refresh-dot"></span> Auto-refreshing every 2s</p>
+
+  <!-- Endpoint Tabs -->
+  <div class="tabs" id="tabs">
+    <div class="tab active" data-endpoint="/v3/paths/list">Paths (Active Streams)</div>
+    <div class="tab" data-endpoint="/v3/rtmpconns/list">RTMP Connections</div>
+    <div class="tab" data-endpoint="/v3/hlsmuxers/list">HLS Muxers</div>
+    <div class="tab" data-endpoint="/v3/webrtcsessions/list">WebRTC Sessions</div>
+    <div class="tab" data-endpoint="/v3/rtspconns/list">RTSP Connections</div>
+    <div class="tab" data-endpoint="/v3/srtconns/list">SRT Connections</div>
+  </div>
+
+  <!-- JSON Panel -->
+  <div class="json-panel">
+    <div class="json-header">
+      <div class="json-url">
+        <span class="method">GET</span>
+        <span id="displayed-url"></span>
+      </div>
+      <div class="json-meta">
+        <span id="status-badge" class="status-badge status-ok">—</span>
+        <span class="response-time" id="response-time">— ms</span>
+        <button class="copy-btn" id="copy-btn" onclick="copyJson()">Copy JSON</button>
+      </div>
+    </div>
+    <div class="json-body" id="json-body">
+      <pre id="json-output">Loading...</pre>
+    </div>
+  </div>
+
+  <!-- Stats Cards -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label">Active Streams</div>
+      <div class="stat-value cyan" id="stat-streams">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total Inbound</div>
+      <div class="stat-value green" id="stat-inbound">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total Outbound</div>
+      <div class="stat-value amber" id="stat-outbound">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Connected Readers</div>
+      <div class="stat-value magenta" id="stat-readers">—</div>
+    </div>
+  </div>
+
+<script>
+(function() {
+  var host = localStorage.getItem('streamlab-host') || window.location.hostname || 'localhost';
+  var API_BASE = 'http://' + host + ':9997';
+  var currentEndpoint = '/v3/paths/list';
+  var currentRawJson = '';
+
+  function updateDisplayedUrl() {
+    document.getElementById('displayed-url').textContent = API_BASE + currentEndpoint;
+  }
+
+  // --- Tab switching ---
+  document.getElementById('tabs').addEventListener('click', function(e) {
+    var tab = e.target.closest('.tab');
+    if (!tab) return;
+    var tabs = document.querySelectorAll('.tab');
+    for (var i = 0; i < tabs.length; i++) tabs[i].classList.remove('active');
+    tab.classList.add('active');
+    currentEndpoint = tab.getAttribute('data-endpoint');
+    updateDisplayedUrl();
+    fetchEndpoint();
+  });
+
+  // --- Syntax highlighting ---
+  function escapeHtml(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function highlightJson(jsonStr) {
+    var str = escapeHtml(jsonStr);
+    // Keys (quoted strings followed by colon)
+    str = str.replace(/(&quot;|")((?:\\.|[^"\\])*)(&quot;|")\s*:/g,
+      '<span class="jk">"$2"</span>:');
+    // Strings as values (after colon+space or in arrays)
+    str = str.replace(/:\s*(&quot;|")((?:\\.|[^"\\])*)(&quot;|")/g,
+      ': <span class="js">"$2"</span>');
+    // Strings in arrays
+    str = str.replace(/([\[,]\s*)(&quot;|")((?:\\.|[^"\\])*)(&quot;|")/g,
+      '$1<span class="js">"$3"</span>');
+    // Numbers
+    str = str.replace(/:\s*(-?\d+\.?\d*(?:[eE][+-]?\d+)?)([\s,\n\r\]}])/g,
+      ': <span class="jn">$1</span>$2');
+    // Booleans
+    str = str.replace(/:\s*(true|false)([\s,\n\r\]}])/g,
+      ': <span class="jb">$1</span>$2');
+    // Null
+    str = str.replace(/:\s*(null)([\s,\n\r\]}])/g,
+      ': <span class="jl">$1</span>$2');
+    return str;
+  }
+
+  // --- Format bytes ---
+  function formatBytes(bytes) {
+    if (bytes == null || isNaN(bytes) || bytes === 0) return '0 B';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    if (bytes < 1073741824) return (bytes / 1048576).toFixed(2) + ' MB';
+    return (bytes / 1073741824).toFixed(2) + ' GB';
+  }
+
+  // --- Update stats cards ---
+  function updateStats(data) {
+    var items = (data && data.items) ? data.items : [];
+    var count = items.length;
+    var inbound = 0, outbound = 0, readers = 0;
+
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i];
+      if (item.bytesReceived != null) inbound += item.bytesReceived;
+      if (item.bytesSent != null) outbound += item.bytesSent;
+      if (Array.isArray(item.readers)) readers += item.readers.length;
+    }
+
+    document.getElementById('stat-streams').textContent = count;
+    document.getElementById('stat-inbound').textContent = formatBytes(inbound);
+    document.getElementById('stat-outbound').textContent = formatBytes(outbound);
+    document.getElementById('stat-readers').textContent = readers;
+  }
+
+  // --- Show error ---
+  function showError() {
+    var badge = document.getElementById('status-badge');
+    badge.textContent = 'ERR';
+    badge.className = 'status-badge status-err';
+    document.getElementById('response-time').textContent = '— ms';
+    currentRawJson = '';
+
+    document.getElementById('json-body').innerHTML =
+      '<div class="error-state">' +
+        '<div class="error-dot"></div>' +
+        '<div class="error-msg">MediaMTX API unreachable at ' + escapeHtml(host) + ':9997</div>' +
+        '<div class="error-hint">Make sure MediaMTX is running and the API is enabled on port 9997.</div>' +
+      '</div>';
+  }
+
+  // --- Fetch ---
+  function fetchEndpoint() {
+    var url = API_BASE + currentEndpoint;
+    var t0 = performance.now();
+
+    fetch(url).then(function(res) {
+      var elapsed = Math.round(performance.now() - t0);
+      var status = res.status;
+
+      var badge = document.getElementById('status-badge');
+      badge.textContent = status;
+      badge.className = (status >= 200 && status < 300)
+        ? 'status-badge status-ok'
+        : 'status-badge status-err';
+
+      document.getElementById('response-time').textContent = elapsed + ' ms';
+
+      return res.json().then(function(data) {
+        currentRawJson = JSON.stringify(data, null, 2);
+        var highlighted = highlightJson(currentRawJson);
+        document.getElementById('json-body').innerHTML =
+          '<pre id="json-output">' + highlighted + '</pre>';
+
+        if (currentEndpoint === '/v3/paths/list') {
+          updateStats(data);
+        } else {
+          fetchPathsForStats();
+        }
+      });
+    }).catch(function() {
+      showError();
+    });
+  }
+
+  function fetchPathsForStats() {
+    fetch(API_BASE + '/v3/paths/list').then(function(res) {
+      if (res.ok) return res.json();
+      throw new Error('not ok');
+    }).then(function(data) {
+      updateStats(data);
+    }).catch(function() {
+      // stats stay as-is
+    });
+  }
+
+  // --- Copy JSON ---
+  window.copyJson = function() {
+    if (!currentRawJson) return;
+    navigator.clipboard.writeText(currentRawJson).then(function() {
+      var btn = document.getElementById('copy-btn');
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(function() {
+        btn.textContent = 'Copy JSON';
+        btn.classList.remove('copied');
+      }, 1500);
+    });
+  };
+
+  // --- Init ---
+  updateDisplayedUrl();
+  fetchEndpoint();
+  setInterval(fetchEndpoint, 2000);
+})();
+</script>
+
+</body>
+</html>

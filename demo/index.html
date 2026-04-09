@@ -226,6 +226,20 @@
           <span class="font-mono text-xs text-gray-400" id="header-viewers">-- watching</span>
         </div>
         <div class="font-mono text-xs text-gray-500" id="header-uptime">00:00:00</div>
+        <div class="flex items-center gap-2 ml-4 bg-surface-600 rounded-lg px-3 py-1.5">
+          <span class="font-mono text-[10px] text-gray-500">SERVER</span>
+          <input id="server-host" type="text" placeholder="localhost"
+            class="bg-surface-900 border border-white/10 rounded px-2 py-1 font-mono text-xs text-neon-cyan w-40 outline-none focus:border-neon-cyan/50"
+            value="">
+          <button onclick="saveServerHost()" class="px-2 py-1 rounded bg-neon-cyan/20 text-neon-cyan text-[10px] font-semibold hover:bg-neon-cyan/30 transition-colors">Apply</button>
+        </div>
+        <div class="flex items-center gap-1 ml-2 bg-surface-600 rounded-lg p-1">
+          <a href="index.html" class="px-3 py-1.5 rounded-md text-xs font-semibold bg-neon-cyan/20 text-neon-cyan">Dashboard</a>
+          <a href="overlay.html" class="px-3 py-1.5 rounded-md text-xs font-semibold text-gray-500 hover:text-white transition-colors">Overlay</a>
+          <a href="latency-compare.html" class="px-3 py-1.5 rounded-md text-xs font-semibold text-gray-500 hover:text-white transition-colors">Latency</a>
+          <a href="whip-ingest.html" class="px-3 py-1.5 rounded-md text-xs font-semibold text-gray-500 hover:text-white transition-colors">WHIP Ingest</a>
+          <a href="api-explorer.html" class="px-3 py-1.5 rounded-md text-xs font-semibold text-gray-500 hover:text-white transition-colors">API</a>
+        </div>
       </div>
     </div>
   </header>
@@ -255,7 +269,7 @@
             </div>
           </div>
           <div class="video-frame border border-neon-cyan/10">
-            <iframe src="http://localhost:8889/live" allow="autoplay"></iframe>
+            <video id="dashboard-webrtc" autoplay muted playsinline style="width:100%;height:100%;object-fit:contain;background:#000;"></video>
           </div>
           <p class="mt-2 text-xs text-gray-500 font-mono">UDP frame-by-frame · instant playback · ideal for interaction</p>
         </div>
@@ -274,7 +288,7 @@
             </div>
           </div>
           <div class="video-frame border border-neon-magenta/10">
-            <iframe src="http://localhost:8888/live" allow="autoplay"></iframe>
+            <iframe id="dashboard-hls" allow="autoplay" style="width:100%;height:100%;border:none;"></iframe>
           </div>
           <p class="mt-2 text-xs text-gray-500 font-mono">Segmented delivery · high compatibility · passive viewing</p>
         </div>
@@ -466,6 +480,26 @@
 
   <script>
     // ==============================
+    // SERVER HOST CONFIG (shared via localStorage)
+    // ==============================
+    function getServerHost() {
+      return localStorage.getItem('streamlab-host') || window.location.hostname || 'localhost';
+    }
+    function saveServerHost() {
+      const input = document.getElementById('server-host');
+      const host = input.value.trim();
+      if (host) {
+        localStorage.setItem('streamlab-host', host);
+        location.reload();
+      }
+    }
+    // Populate input with current value
+    document.addEventListener('DOMContentLoaded', () => {
+      const input = document.getElementById('server-host');
+      if (input) input.value = getServerHost();
+    });
+
+    // ==============================
     // PROTOCOL DATA
     // ==============================
     const protocols = [
@@ -644,7 +678,7 @@
     // ==============================
     // STREAM STATS (all real from API)
     // ==============================
-    const API = 'http://localhost:9997/v3';
+    const API = `http://${getServerHost()}:9997/v3`;
     let prevBytes = 0;
     let prevTime = 0;
     let bandwidthHistory = new Array(24).fill(0);
@@ -842,6 +876,31 @@
     renderProtocols();
     updatePoll();
     renderBandwidthGraph();
+
+    // --- Dashboard video players (dynamic host, direct WHEP for WebRTC) ---
+    const dashHost = getServerHost();
+
+    // WebRTC via direct WHEP — no iframe overhead
+    (function initDashboardWebRTC() {
+      const video = document.getElementById('dashboard-webrtc');
+      const pc = new RTCPeerConnection();
+      pc.addTransceiver('video', { direction: 'recvonly' });
+      pc.addTransceiver('audio', { direction: 'recvonly' });
+      pc.ontrack = (e) => { video.srcObject = e.streams[0]; };
+      pc.createOffer().then(offer => {
+        pc.setLocalDescription(offer);
+        return fetch(`http://${dashHost}:8889/live/whep`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/sdp' },
+          body: offer.sdp
+        });
+      }).then(res => res.text()).then(sdp => {
+        pc.setRemoteDescription({ type: 'answer', sdp });
+      }).catch(() => {});
+    })();
+
+    // HLS via iframe with dynamic host
+    document.getElementById('dashboard-hls').src = `http://${dashHost}:8888/live`;
 
     setInterval(updateUptime, 1000);
     setInterval(addSimulatedChat, 3000);
