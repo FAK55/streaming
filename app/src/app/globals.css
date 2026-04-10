@@ -1,0 +1,69 @@
+@import "tailwindcss";
+
+:root {
+  --bg-primary: #08080c;
+  --bg-secondary: #0d0d14;
+  --bg-card: #12121c;
+  --bg-surface: #1a1a28;
+  --text-primary: #e0e0e8;
+  --text-muted: #888;
+  --neon-cyan: #00f0ff;
+  --neon-magenta: #ff2d78;
+  --neon-green: #39ff14;
+  --neon-amber: #ffb800;
+  --neon-purple: #b026ff;
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-secondary); }
+::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+
+/* Glow utilities */
+.glow-cyan { text-shadow: 0 0 20px rgba(0,240,255,0.5); }
+.glow-magenta { text-shadow: 0 0 20px rgba(255,45,120,0.5); }
+
+/* Panel base */
+.panel {
+  background: linear-gradient(135deg, rgba(18,18,28,0.95), rgba(13,13,20,0.98));
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+}
+
+.panel::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0,240,255,0.3), transparent);
+}
+
+/* Live pulse animation */
+@keyframes livePulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 8px rgba(255,45,120,0.6); }
+  50% { opacity: 0.7; box-shadow: 0 0 16px rgba(255,45,120,0.8); }
+}
+
+.live-dot { animation: livePulse 2s ease-in-out infinite; }
+
+/* Tag/badge */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
